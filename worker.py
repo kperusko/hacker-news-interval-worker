@@ -226,9 +226,15 @@ class StoryCollector(object):
         
 
 def collect_data():
+    print "======================================================="
+    print "Started collecting stories: " + datetime.datetime.now().isoformat()
     sc = StoryCollector(HackerNews(), HackerNewsInterval())
     sc.collect()
     sc.save()
+    print "Ended collecting stories: " + datetime.datetime.now().isoformat()
+    print "======================================================="
+    print ""
+
 
 if __name__ == "__main__":
     collect_data()
