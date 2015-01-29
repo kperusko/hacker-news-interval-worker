@@ -1,158 +1,16 @@
+#!/usr/bin/env python
+
+"""
+Hacker News Interval worker
+Background worker that collects that from the
+official HackerNews Firebase API and stores it
+to the Hacker News Interval application
+"""
+
 import datetime
-import json
-import requests
 import config
-
-class JSONSerializable(object):
-    @staticmethod
-    def json_encode(obj):
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        elif obj is None:
-            return
-        elif hasattr(obj, '__dict__'):
-            return obj.__dict__
-        else:
-            raise TypeError("Object of type %s is not JSON serializable" % type(obj))
-
-    def to_json(self):
-        return json.dumps(self, default=self.json_encode)
-
-
-class Score(JSONSerializable):
-    def __init__(self, score, rank, snapshot_id):
-        self.score = score
-        self.rank = rank
-        self.snapshot = snapshot_id
-
-
-class Story(JSONSerializable):
-    ITEM_URL = "https://news.ycombinator.com/item?id="
-
-    def __init__(self):
-        self._id = 0
-        self.title = ""
-        self.by = ""
-        self.created = datetime.datetime.now()
-        self.scores = []
-        self.url = self.ITEM_URL + str(self._id)
-
-
-class Snapshot(JSONSerializable):
-    def __init__(self, snapshot=None):
-        self._id = None
-        self.time = datetime.datetime.utcnow()
-        self.new_items = 0
-
-        if snapshot:
-            self._id = snapshot["_id"]
-            self.time = snapshot["time"]
-            self.new_items = snapshot["new_items"]
-
-
-class HTTPService(object):
-    BASE_URL = ""
-    FORMAT = ""
-
-    def build_url(self, resource, resource_id=""):
-        url = self.BASE_URL + resource
-        if resource_id != "":
-            url = url + "/"
-
-        url = url + resource_id + self.FORMAT
-        return url
-
-    def exec_request(self, verb, resource, resource_id="", data=None):
-        url = self.build_url(resource, resource_id)
-        headers = {"content-type": "application/json"}
-
-        allowed_actions = {"get": requests.get, "post": requests.post,
-                           "put": requests.put, "patch": requests.patch}
-
-        if verb not in allowed_actions:
-            raise ValueError("Action %s is not allowed " % verb)
-
-        if not data:
-            return allowed_actions[verb](url)
-        else:
-            return allowed_actions[verb](url=url, data=data, headers=headers)
-
-    def get(self, resource, resource_id=""):
-        return self.exec_request("get", resource, resource_id)
-
-    def post(self, resource, data):
-        data = data.to_json()
-        return self.exec_request(verb="post", resource=resource, data=data)
-
-    def put(self, resource, resource_id, data):
-        data = data.to_json()
-        return self.exec_request("put", resource, resource_id, data)
-
-    def patch(self, resource, resource_id, data):
-        data = json.dumps(data, default=JSONSerializable.json_encode)
-        return self.exec_request("patch", resource, resource_id, data)
-
-
-class HackerNewsInterval(HTTPService):
-    BASE_URL = config.app["interval_url"]
-    STORY_IDS_URL = "story/ids"
-    STORY_URL = "story"
-    SNAPSHOTS_URL = "snapshots"
-    SNAPSHOT_URL = "snapshot"
-
-    def get_story_ids(self):
-        response = self.get(self.STORY_IDS_URL)
-
-        if response.status_code != requests.codes.ok:
-            return []
-
-        return response.json()
-
-    def add_story(self, story):
-        return self.put(self.STORY_URL, str(story._id), story)
-
-    def update_story(self, story_id, score):
-        update = {"op": "add", "path": "scores", "value": score}
-        return self.patch(self.STORY_URL, str(story_id), update)
-
-    def create_snapshot(self, snapshot):
-        response = self.post(self.SNAPSHOTS_URL, snapshot)
-
-        if response.status_code == requests.codes.ok:
-            return response.json()
-
-    def update_snapshot(self, snapshot):
-        return self.put(self.SNAPSHOT_URL, str(snapshot._id), snapshot)
-
-
-class HackerNews(HTTPService):
-    BASE_URL = "https://hacker-news.firebaseio.com/v0/"
-    FORMAT = ".json"
-    TOP_STORY_URL = "topstories"
-    TOP_STORY_LIMIT = 100  # number of ids returned from HN API
-    ITEM_URL = "item"
-    FORMAT = ".json"
-
-    def get_top_stories(self, limit=100):
-        # limit the max number of stories we can fetch
-        if 0 > limit > HackerNews.TOP_STORY_LIMIT:
-            limit = 100
-
-        response = self.get(self.TOP_STORY_URL)
-
-        if response.status_code != requests.codes.ok:
-            return []
-
-        return response.json()[:limit]
-
-    def get_story(self, story_id):
-        response = self.get(self.ITEM_URL, str(story_id))
-
-        if response.status_code != requests.codes.ok:
-            return {}
-
-        return response.json()
-
+from services import HackerNewsInterval, HackerNews
+from models import Snapshot, Story, Score
 
 class StoryCollector(object):
     def __init__(self, hacker_news_service, news_interval_service):
@@ -228,11 +86,10 @@ class StoryCollector(object):
 def collect_data():
     print "======================================================="
     print "Started collecting stories: " + datetime.datetime.now().isoformat()
-    sc = StoryCollector(HackerNews(), HackerNewsInterval())
+    sc = StoryCollector(HackerNews(), HackerNewsInterval(config.app["interval_url"]))
     sc.collect()
     sc.save()
     print "Ended collecting stories: " + datetime.datetime.now().isoformat()
-    print "======================================================="
     print ""
 
 
