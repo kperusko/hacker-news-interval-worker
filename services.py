@@ -32,13 +32,16 @@ class HTTPService(object):
 
             if response.status_code != requests.codes.ok and \
                response.status_code != requests.codes.created:
-                print "Action %s failed for url %s with code %s" % (verb, url, response.status_code)
+                print "Action %s failed for url %s with code %s" % \
+                    (verb, url, response.status_code)
                 return None
 
             return response.json()
-
         except requests.exceptions.RequestException, e: 
-            print "Request exception %s occured" % e.code
+            print "Request exception occured "
+            print "Action %s failed for url %s" % (verb, url)
+            print e 
+            return None
             
 
     def get(self, resource, resource_id=""):
@@ -100,7 +103,7 @@ class HackerNews(HTTPService):
         response = self.get(self.TOP_STORY_URL)
 
         if response is None:
-            return []
+            return None
         else:
             return response[:limit]
 

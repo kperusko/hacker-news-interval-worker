@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 """
@@ -7,25 +8,33 @@ official HackerNews Firebase API and stores it
 to the Hacker News Interval application
 """
 
+import sys
 import datetime
 import config
 from services import HackerNewsInterval, HackerNews
 from models import Snapshot, Story, Score
 
+
 class StoryCollector(object):
     def __init__(self, hacker_news_service, news_interval_service):
+        self.__stories = None
         self.__stories_to_update = None
         self.__stories_to_add = None
         self.__hn = hacker_news_service
         self.__ni = news_interval_service
 
     def collect(self):
-        top_story_ids = self.__hn.get_top_stories()
+        top_story_ids = self.__stories = self.__hn.get_top_stories()
+
+        if top_story_ids is None: 
+            print "Couldn't load top stories from HN"
+            sys.exit(1)
+
         existing_story_ids = self.__ni.get_story_ids()
 
-        # create a dictionary where key is id of the story
-        # and value is a rank (index of the item in array)
-        self.__stories = {v: k+1 for k, v in enumerate(top_story_ids)}
+        if existing_story_ids is None:
+            print "Couldn't load existing story ids"
+            sys.exit(1)
 
         top_story_ids = set(top_story_ids)
         existing_story_ids = set(existing_story_ids)
@@ -39,8 +48,9 @@ class StoryCollector(object):
 
         story_num = int(config.app["story_number"])
         skipped = added = updated = 0
-        for story_id, rank in self.__stories.iteritems():
-            rank = self.__stories[story_id] - skipped
+
+        for rank, story_id in enumerate(self.__stories):
+            rank = rank + 1 - skipped
             story = self.createStory(self.__hn.get_story(story_id), rank, snapshot)
 
             if not story: 
