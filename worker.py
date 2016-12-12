@@ -116,7 +116,7 @@ def create_story(story_json, rank, snapshot):
     story.scores = [Score(story_json["score"], rank, snapshot._id)]
     # job story type doesn't have url
     # so we need to create a link to story on the HN
-    story.url = story_json["url"] or Story.ITEM_URL + str(story_json["id"])
+    story.url = story_json.get("url", Story.ITEM_URL + str(story_json["id"]))
     return story
 
 
